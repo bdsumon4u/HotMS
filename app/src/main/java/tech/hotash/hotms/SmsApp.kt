@@ -14,8 +14,11 @@ class SmsApp: Application() {
         super.onCreate()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(
                 NotificationChannel(CHANNEL, "Foreground Notification", NotificationManager.IMPORTANCE_HIGH)
+                    .apply {
+                        description = "Channel for displaying foreground notifications"
+                    }
             )
         }
     }

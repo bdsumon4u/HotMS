@@ -47,8 +47,7 @@
             android:name=".SmsService"
             android:exported="false"
             android:enabled="true"
-            android:foregroundServiceType="dataSync"
-            tools:ignore="ForegroundServicePermission" />
+            android:foregroundServiceType="dataSync" />
 
         <activity
             android:name=".MainActivity"
