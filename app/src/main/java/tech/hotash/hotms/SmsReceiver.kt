@@ -1,11 +1,13 @@
 package tech.hotash.hotms
 
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
 import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.Callback
@@ -17,6 +19,16 @@ class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (Telephony.Sms.Intents.SMS_RECEIVED_ACTION == intent.action) {
             try {
+                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                val notification = NotificationCompat.Builder(context, SmsApp.CHANNEL)
+                    .setContentTitle("SMS Service")
+                    .setContentText("Listening for incoming SMS")
+                    .setOngoing(true)
+                    .setSmallIcon(R.drawable.ic_launcher_background)
+                    .build()
+                notificationManager.notify(1, notification)
+
+
                 val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
 
                 val sharedPreferences = context.getSharedPreferences("AppSettings", Context.MODE_PRIVATE)

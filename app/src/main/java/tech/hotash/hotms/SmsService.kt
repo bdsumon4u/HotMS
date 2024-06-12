@@ -21,8 +21,8 @@ class SmsService : Service() {
         return NotificationCompat.Builder(this, SmsApp.CHANNEL)
             .setContentTitle("SMS Service")
             .setContentText("Listening for incoming SMS")
-            .setOnlyAlertOnce(true)
             .setOngoing(true)
+            .setSmallIcon(R.drawable.ic_launcher_background)
             .build()
     }
 
